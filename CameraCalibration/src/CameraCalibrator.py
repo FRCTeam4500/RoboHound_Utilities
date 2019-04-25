@@ -58,13 +58,13 @@ class CameraCalibrator(QMainWindow):
 
         # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
         objp = np.zeros((self.width * self.height, 3), np.float32)
-        objp[:,:2] = np.mgrid[0:self.width, 0:self.height].T.reshape(-1, 2)
+        objp[:, :2] = np.mgrid[0:self.width, 0:self.height].T.reshape(-1, 2)
 
         # Arrays to store object points and image points from all the images.
         objpoints = [] # 3d point in real world space
         imgpoints = [] # 2d points in image plane.
 
-        images = glob.glob(self.inputPath)
+        images = glob.glob(os.path.join(self.inputPath, '*.jpg'))
 
         for fname in images:
             print('Processing file', fname)
@@ -79,7 +79,6 @@ class CameraCalibrator(QMainWindow):
 
             # Find the chess board corners
             ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), None)
-
             # If found, add object points, image points (after refining them)
             if ret == True:
                 objpoints.append(objp)
@@ -106,7 +105,7 @@ class CameraCalibrator(QMainWindow):
             return None
     
         print('Found {} useful images'.format(len(objpoints)))
-        ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1, None, None])
+        ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 
         print('reprojection error = ', ret)
         print('image center = ({:.2f}, {:.2f})'.format(mtx[0][2], mtx[1][2]))
@@ -119,8 +118,8 @@ class CameraCalibrator(QMainWindow):
         print('dist = ', dist)
 
         if self.outputPath:
-            with open(os.path.join(self.outputPath, 'data.json')) as f:
-                json.dump({"camera_matrix": mtx, "distorsion": dist}, f)
+            with open(os.path.join(self.outputPath, 'data.json'), 'w+') as f:
+                json.dump({"camera_matrix": mtx.tolist(), "distorsion": dist.tolist()}, f)
     
 
 app = QApplication(sys.argv)
