@@ -7,7 +7,7 @@ import math
 import json
 
 from PyQt5.uic import loadUi
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QFileDialog, QLineEdit, QWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QCheckBox, QVBoxLayout, QHBoxLayout, QPushButton, QFileDialog, QLineEdit, QWidget, QListWidget
 
 class CameraCalibrator(QMainWindow):
 
@@ -15,6 +15,8 @@ class CameraCalibrator(QMainWindow):
         super().__init__()
         self.ui = None
         self.load_ui()
+
+        self.resultWindow = ResultWindow()
     
     def load_ui(self):
         self.ui = loadUi('CameraCalibrator.ui', self)
@@ -32,6 +34,20 @@ class CameraCalibrator(QMainWindow):
 
         self.btnStart = self.ui.findChild(QPushButton, 'btnStart')
         self.btnStart.clicked.connect(self.startClicked)
+
+        self.checkAdaptive = self.ui.findChild(QCheckBox, 'checkAdaptive')
+        self.checkNormalize = self.ui.findChild(QCheckBox, 'checkNormalize')
+        self.checkFilter = self.ui.findChild(QCheckBox, 'checkFilter')
+        self.checkFast = self.ui.findChild(QCheckBox, 'checkFast')
+
+        self.flagDic = {
+            "CALIB_CB_ADAPTIVE_THRESH": cv2.CALIB_CB_ADAPTIVE_THRESH,
+            "CALIB_CB_NORMALIZE_IMAGE": cv2.CALIB_CB_NORMALIZE_IMAGE,
+            "CALIB_CB_FILTER_QUADS": cv2.CALIB_CB_FILTER_QUADS,
+            "CALIB_CB_FAST_CHECK": cv2.CALIB_CB_FAST_CHECK
+        }
+        self.selectedFlags = None
+        
         self.show()
     
     def loadDir(self, editPath):
@@ -44,7 +60,17 @@ class CameraCalibrator(QMainWindow):
 
             self.inputPath = self.editInputDir.text()
             self.outputPath = self.editOutputDir.text()
-
+            
+            self.selectedFlags = []
+            if self.checkAdaptive.isChecked():
+                self.selectedFlags.append(self.checkAdaptive.text())
+            if self.checkNormalize.isChecked():
+                self.selectedFlags.append(self.checkNormalize.text())
+            if self.checkFilter.isChecked():
+                self.selectedFlags.append(self.checkFilter.text())
+            if self.checkFast.isChecked():
+                self.selectedFlags.append(self.checkFast.text())
+            
             self.calibrate()
         except ValueError:
             print("ERROR: Please enter a valid number")
@@ -64,6 +90,12 @@ class CameraCalibrator(QMainWindow):
         objpoints = [] # 3d point in real world space
         imgpoints = [] # 2d points in image plane.
 
+        total = 0
+        success = 0
+        failed = 0
+        failedList = []
+
+
         images = glob.glob(os.path.join(self.inputPath, '*.jpg'))
 
         for fname in images:
@@ -78,7 +110,16 @@ class CameraCalibrator(QMainWindow):
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
             # Find the chess board corners
-            ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), None)
+            if len(self.selectedFlags) == 0:
+                ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), None)
+            elif len(self.selectedFlags) == 1:
+                ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), self.flagDic[self.selectedFlags[0]])
+            elif len(self.selectedFlags) == 2:
+                ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), self.flagDic[self.selectedFlags[0]] + self.flagDic[self.selectedFlags[1]])
+            elif len(self.selectedFlags) == 3:
+                ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), self.flagDic[self.selectedFlags[0]] + self.flagDic[self.selectedFlags[1]] + self.flagDic[self.selectedFlags[2]])
+            elif len(self.selectedFlags) == 4:
+                ret, corners = cv2.findChessboardCorners(gray, (self.width, self.height), self.flagDic[self.selectedFlags[0]] + self.flagDic[self.selectedFlags[1]] + self.flagDic[self.selectedFlags[2]] + self.flagDic[self.selectedFlags[3]])
             # If found, add object points, image points (after refining them)
             if ret == True:
                 objpoints.append(objp)
@@ -95,8 +136,13 @@ class CameraCalibrator(QMainWindow):
                     cv2.imwrite(name, img)
 
                 cv2.waitKey(500)
+                success += 1
             else:
                 print(fname, 'failed')
+                failed += 1
+                failedList.append(fname)
+            
+            total += 1
 
         cv2.destroyAllWindows()
 
@@ -107,12 +153,21 @@ class CameraCalibrator(QMainWindow):
         print('Found {} useful images'.format(len(objpoints)))
         ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 
+
         print('reprojection error = ', ret)
         print('image center = ({:.2f}, {:.2f})'.format(mtx[0][2], mtx[1][2]))
 
         fov_x = math.degrees(2.0 * math.atan(self.shape[1] / 2.0 / mtx[0][0]))
         fov_y = math.degrees(2.0 * math.atan(self.shape[0] / 2.0 / mtx[1][1]))
         print('FOV = ({:.2f}, {:.2f}) degrees'.format(fov_x, fov_y))
+
+        self.resultWindow.setTotal(total)
+        self.resultWindow.setSuccess(success)
+        self.resultWindow.setFailed(failed)
+        self.resultWindow.setFOV(fov_x, fov_y)
+        self.resultWindow.setCenter(mtx[0][2], mtx[1][2])
+        self.resultWindow.setList(failedList)
+        self.resultWindow.show_ui()
 
         print('mtx = ', mtx)
         print('dist = ', dist)
@@ -121,6 +176,46 @@ class CameraCalibrator(QMainWindow):
             with open(os.path.join(self.outputPath, 'data.json'), 'w+') as f:
                 json.dump({"camera_matrix": mtx.tolist(), "distorsion": dist.tolist()}, f)
     
+class ResultWindow(QMainWindow):
+    
+    def __init__(self):
+        super().__init__()
+        self.ui = None
+        self.load_ui()
+    
+    def load_ui(self):
+        self.ui = loadUi('Result.ui', self)
+
+        self.labelTotal = self.ui.findChild(QLabel, 'labelTotal')
+        self.labelSuccess = self.ui.findChild(QLabel, 'labelSuccess')
+        self.labelFailed = self.ui.findChild(QLabel, 'labelFailed')
+
+        self.listFailed = self.ui.findChild(QListWidget, 'listFailed')
+
+        self.labelFOV = self.ui.findChild(QLabel, 'labelFOV')
+        self.labelCenter = self.ui.findChild(QLabel, 'labelCenter')
+    
+    def show_ui(self):
+        self.show()
+
+
+    def setTotal(self, total):
+        self.labelTotal.setText('Total: {}'.format(total))
+        
+    def setSuccess(self, success):
+        self.labelSuccess.setText('Success: {}'.format(success))
+
+    def setFailed(self, failed):
+        self.labelFailed.setText('Failed: {}'.format(failed))
+
+    def setFOV(self, fovX, fovY):
+        self.labelFOV.setText('FOV: ({:.2f}, {:.2f})'.format(fovX,  fovY))
+
+    def setCenter(self, centerX, centerY):
+        self.labelCenter.setText('Center: ({:.2f}, {:.2f})'.format(centerX,  centerY))
+    
+    def setList(self, list):
+        self.listFailed.addItems(list)
 
 app = QApplication(sys.argv)
 cameraCalibrator = CameraCalibrator()

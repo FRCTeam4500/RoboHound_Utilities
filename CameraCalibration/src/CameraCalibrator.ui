@@ -7,19 +7,19 @@
     <x>0</x>
     <y>0</y>
     <width>406</width>
-    <height>191</height>
+    <height>300</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>406</width>
-    <height>191</height>
+    <height>300</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>406</width>
-    <height>191</height>
+    <height>350</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -169,6 +169,34 @@
          </spacer>
         </item>
        </layout>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkAdaptive">
+        <property name="text">
+         <string>CALIB_CB_ADAPTIVE_THRESH</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkNormalize">
+        <property name="text">
+         <string>CALIB_CB_NORMALIZE_IMAGE</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkFilter">
+        <property name="text">
+         <string>CALIB_CB_FILTER_QUADS</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkFast">
+        <property name="text">
+         <string>CALIB_CB_FAST_CHECK</string>
+        </property>
+       </widget>
       </item>
       <item>
        <spacer name="verticalSpacer">
