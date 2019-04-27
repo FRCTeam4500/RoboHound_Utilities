@@ -1,5 +1,8 @@
 CameraCalibration/src/input/*
 CameraCalibration/src/output/*
 
-VisionTuner/src/input/*
-VisionTuner/src/output/*
+CameraCalibration/input/*
+CameraCalibration/output/*
+
+VisionTuner/input/*
+VisionTuner/output/*
